@@ -9,7 +9,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -19,9 +18,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.player.PhotoViewerDialog
 import com.example.player.VideoPlayerDialog
@@ -83,6 +80,7 @@ fun GSPlayProApp(
     val aiCategory by viewModel.aiCategory.collectAsState()
     val aiResults by viewModel.aiResults.collectAsState()
     val isAiLoading by viewModel.isAiLoading.collectAsState()
+    val customApiKey by viewModel.customApiKey.collectAsState()
 
     val isVaultUnlocked by viewModel.isVaultUnlocked.collectAsState()
     val vaultItems by viewModel.vaultItems.collectAsState()
@@ -167,6 +165,7 @@ fun GSPlayProApp(
                         onUrlChange = { viewModel.updateStreamUrlInput(it) },
                         onTypeChange = { viewModel.setStreamType(it) },
                         onPlayStream = { viewModel.launchStream(it) },
+                        onDownloadStream = { viewModel.downloadUrl(it, selectedStreamType) },
                         onToggleBookmark = { id, cur -> viewModel.toggleStreamBookmark(id, cur) },
                         onClearHistory = { viewModel.clearStreamHistory() }
                     )
@@ -177,6 +176,8 @@ fun GSPlayProApp(
                         selectedCategory = aiCategory,
                         results = aiResults,
                         isLoading = isAiLoading,
+                        customApiKey = customApiKey,
+                        onSaveApiKey = { viewModel.saveCustomApiKey(it) },
                         onQueryChange = { viewModel.updateAiQuery(it) },
                         onCategoryChange = { viewModel.setAiCategory(it) },
                         onSearch = { viewModel.performAiSearch(it) },
@@ -190,6 +191,7 @@ fun GSPlayProApp(
                                 else -> viewModel.openVideo(item)
                             }
                         },
+                        onDownloadMedia = { viewModel.downloadMedia(it) },
                         onAddToVault = { viewModel.addMediaToVault(it) }
                     )
                 }
@@ -225,7 +227,8 @@ fun GSPlayProApp(
     activeVideo?.let { video ->
         VideoPlayerDialog(
             item = video,
-            onDismiss = { viewModel.closeVideo() }
+            onDismiss = { viewModel.closeVideo() },
+            onDownload = { viewModel.downloadMedia(it) }
         )
     }
 
@@ -234,7 +237,8 @@ fun GSPlayProApp(
         PhotoViewerDialog(
             item = photo,
             onDismiss = { viewModel.closePhoto() },
-            onAddToVault = { viewModel.addMediaToVault(it) }
+            onAddToVault = { viewModel.addMediaToVault(it) },
+            onDownload = { viewModel.downloadMedia(it) }
         )
     }
 
@@ -257,6 +261,7 @@ fun GSPlayProApp(
             onToggleLoop = { viewModel.audioPlayer.toggleLoop() },
             onToggleShuffle = { viewModel.audioPlayer.toggleShuffle() },
             onAddToVault = { viewModel.addMediaToVault(it) },
+            onDownload = { viewModel.downloadMedia(it) },
             onDismiss = { viewModel.openNowPlaying(false) }
         )
     }

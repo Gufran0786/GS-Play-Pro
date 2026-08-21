@@ -1,14 +1,12 @@
 package com.example.ui.viewmodel
 
 import android.app.Application
-import android.net.Uri
-import android.widget.Toast
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.data.download.MediaDownloadManager
 import com.example.data.local.AppDatabase
 import com.example.data.local.StreamHistoryEntity
 import com.example.data.local.VaultItemEntity
-import com.example.data.local.VaultRepository
 import com.example.data.local.VaultSecurityManager
 import com.example.data.media.MediaStoreHelper
 import com.example.data.model.AIMediaCard
@@ -35,18 +33,21 @@ enum class AppTab {
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val mediaHelper = MediaStoreHelper(application)
-    private val db = AppDatabase.getDatabase(application)
-    private val vaultRepo = VaultRepository(db.vaultDao(), db.streamHistoryDao())
-    val securityManager = VaultSecurityManager(application)
-    private val aiService = GeminiMediaExplorerService()
-    val audioPlayer = AudioPlayerController(application)
+    private val mediaStoreHelper = MediaStoreHelper(application)
+    private val database = AppDatabase.getDatabase(application)
+    private val vaultDao = database.vaultDao()
+    private val historyDao = database.streamHistoryDao()
 
-    // Current Tab
+    val securityManager = VaultSecurityManager(application)
+    val audioPlayer = AudioPlayerController(application)
+    val downloadManager = MediaDownloadManager(application)
+    private val aiService = GeminiMediaExplorerService(application)
+
+    // Navigation & Tabs
     private val _currentTab = MutableStateFlow(AppTab.PHOTOS)
     val currentTab: StateFlow<AppTab> = _currentTab.asStateFlow()
 
-    // Media Collections
+    // Local Media States
     private val _photos = MutableStateFlow<List<MediaItem>>(emptyList())
     val photos: StateFlow<List<MediaItem>> = _photos.asStateFlow()
 
@@ -59,7 +60,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _isLoadingMedia = MutableStateFlow(false)
     val isLoadingMedia: StateFlow<Boolean> = _isLoadingMedia.asStateFlow()
 
-    // Active Fullscreen Player / Viewers
+    // Active Viewers & Players
     private val _activePhoto = MutableStateFlow<MediaItem?>(null)
     val activePhoto: StateFlow<MediaItem?> = _activePhoto.asStateFlow()
 
@@ -69,22 +70,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _showNowPlayingSheet = MutableStateFlow(false)
     val showNowPlayingSheet: StateFlow<Boolean> = _showNowPlayingSheet.asStateFlow()
 
-    // Stream URL Player
+    // Direct Stream State
     private val _streamUrlInput = MutableStateFlow("")
     val streamUrlInput: StateFlow<String> = _streamUrlInput.asStateFlow()
 
     private val _selectedStreamType = MutableStateFlow(MediaType.STREAM_URL)
     val selectedStreamType: StateFlow<MediaType> = _selectedStreamType.asStateFlow()
 
-    val streamHistory: StateFlow<List<StreamHistoryEntity>> = vaultRepo.allStreamHistory
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val streamHistory: StateFlow<List<StreamHistoryEntity>> = historyDao.getAllStreamHistory()
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
-    // AI Media Explorer
-    private val _aiCategory = MutableStateFlow(AIMediaCategory.ALL)
-    val aiCategory: StateFlow<AIMediaCategory> = _aiCategory.asStateFlow()
-
+    // AI Media Explorer State
     private val _aiSearchQuery = MutableStateFlow("")
     val aiSearchQuery: StateFlow<String> = _aiSearchQuery.asStateFlow()
+
+    private val _aiCategory = MutableStateFlow(AIMediaCategory.ALL)
+    val aiCategory: StateFlow<AIMediaCategory> = _aiCategory.asStateFlow()
 
     private val _aiResults = MutableStateFlow<List<AIMediaCard>>(emptyList())
     val aiResults: StateFlow<List<AIMediaCard>> = _aiResults.asStateFlow()
@@ -92,16 +93,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _isAiLoading = MutableStateFlow(false)
     val isAiLoading: StateFlow<Boolean> = _isAiLoading.asStateFlow()
 
+    private val _customApiKey = MutableStateFlow(aiService.getCustomApiKey())
+    val customApiKey: StateFlow<String> = _customApiKey.asStateFlow()
+
     // Private Vault State
     private val _isVaultUnlocked = MutableStateFlow(false)
     val isVaultUnlocked: StateFlow<Boolean> = _isVaultUnlocked.asStateFlow()
 
-    val vaultItems: StateFlow<List<VaultItemEntity>> = vaultRepo.allVaultItems
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val vaultItems: StateFlow<List<VaultItemEntity>> = vaultDao.getAllVaultItems()
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     init {
         loadAllMedia()
-        performAiSearch("", AIMediaCategory.ALL)
+        performAiSearch("")
     }
 
     fun selectTab(tab: AppTab) {
@@ -111,13 +115,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun loadAllMedia() {
         viewModelScope.launch {
             _isLoadingMedia.value = true
-            _photos.value = mediaHelper.loadPhotos()
-            _videos.value = mediaHelper.loadVideos()
-            _music.value = mediaHelper.loadMusic()
+            _photos.value = mediaStoreHelper.loadPhotos()
+            _videos.value = mediaStoreHelper.loadVideos()
+            _music.value = mediaStoreHelper.loadMusic()
             _isLoadingMedia.value = false
         }
     }
 
+    // Media Viewer Openers
     fun openPhoto(item: MediaItem) {
         _activePhoto.value = item
     }
@@ -134,15 +139,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _activeVideo.value = null
     }
 
-    fun openNowPlaying(show: Boolean) {
-        _showNowPlayingSheet.value = show
-    }
-
     fun playAudioItem(item: MediaItem, queue: List<MediaItem> = _music.value) {
         audioPlayer.playTrack(item, queue)
     }
 
-    // Stream URL Player
+    fun openNowPlaying(show: Boolean) {
+        _showNowPlayingSheet.value = show
+    }
+
+    // Direct Stream Methods
     fun updateStreamUrlInput(url: String) {
         _streamUrlInput.value = url
     }
@@ -151,97 +156,110 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _selectedStreamType.value = type
     }
 
-    fun launchStream(customUrl: String? = null) {
-        val url = (customUrl ?: _streamUrlInput.value).trim()
-        if (url.isBlank()) {
-            Toast.makeText(getApplication(), "Please enter or paste a valid URL", Toast.LENGTH_SHORT).show()
-            return
-        }
+    fun launchStream(explicitUrl: String? = null) {
+        val targetUrl = (explicitUrl ?: _streamUrlInput.value).trim()
+        if (targetUrl.isBlank()) return
 
-        val cleanLower = url.lowercase()
-        val detectedType = when {
-            _selectedStreamType.value == MediaType.PHOTO ||
-                    cleanLower.endsWith(".jpg") || cleanLower.endsWith(".png") ||
-                    cleanLower.endsWith(".jpeg") || cleanLower.endsWith(".webp") ||
-                    cleanLower.contains("unsplash.com") -> MediaType.PHOTO
-
-            _selectedStreamType.value == MediaType.MUSIC ||
-                    cleanLower.endsWith(".mp3") || cleanLower.endsWith(".aac") ||
-                    cleanLower.endsWith(".ogg") || cleanLower.endsWith(".wav") ||
-                    cleanLower.contains("soundhelix.com") -> MediaType.MUSIC
-
-            else -> MediaType.VIDEO
+        val detectedType = if (_selectedStreamType.value != MediaType.STREAM_URL) {
+            _selectedStreamType.value
+        } else {
+            val lower = targetUrl.lowercase()
+            when {
+                lower.endsWith(".mp3") || lower.endsWith(".wav") || lower.endsWith(".ogg") || lower.endsWith(".aac") || lower.endsWith(".flac") -> MediaType.MUSIC
+                lower.endsWith(".jpg") || lower.endsWith(".jpeg") || lower.endsWith(".png") || lower.endsWith(".webp") || lower.endsWith(".gif") -> MediaType.PHOTO
+                else -> MediaType.VIDEO
+            }
         }
 
         viewModelScope.launch {
-            vaultRepo.recordStreamPlay(
-                title = url.substringAfterLast("/").take(30).ifEmpty { "Online Stream" },
-                url = url,
-                type = detectedType.name
+            historyDao.insertOrUpdateStream(
+                StreamHistoryEntity(
+                    streamUrl = targetUrl,
+                    title = targetUrl.substringAfterLast("/").take(30).ifEmpty { "Online Stream" },
+                    mediaType = detectedType.name
+                )
             )
         }
 
+        val item = MediaItem(
+            title = targetUrl.substringAfterLast("/").take(30).ifEmpty { "Online Media" },
+            subtitle = targetUrl,
+            uri = targetUrl,
+            type = detectedType
+        )
+
         when (detectedType) {
-            MediaType.PHOTO -> {
-                val photoItem = MediaItem(
-                    title = "Web Photo Stream",
-                    subtitle = url,
-                    uri = url,
-                    type = MediaType.PHOTO
-                )
-                openPhoto(photoItem)
-            }
+            MediaType.PHOTO -> openPhoto(item)
             MediaType.MUSIC -> {
-                val audioItem = MediaItem(
-                    title = "Online Audio Stream",
-                    subtitle = url,
-                    uri = url,
-                    artist = "Direct Stream",
-                    type = MediaType.MUSIC
-                )
-                playAudioItem(audioItem, listOf(audioItem))
+                playAudioItem(item, listOf(item))
                 openNowPlaying(true)
             }
-            else -> {
-                val videoItem = MediaItem(
-                    title = "Direct Video Stream",
-                    subtitle = url,
-                    uri = url,
-                    type = MediaType.VIDEO
-                )
-                openVideo(videoItem)
-            }
+            else -> openVideo(item)
         }
     }
 
     fun toggleStreamBookmark(id: Long, current: Boolean) {
         viewModelScope.launch {
-            vaultRepo.toggleBookmarkStream(id, current)
+            historyDao.setBookmark(id, !current)
         }
     }
 
     fun clearStreamHistory() {
         viewModelScope.launch {
-            vaultRepo.clearStreamHistory()
+            historyDao.clearHistory()
         }
     }
 
-    // AI Media Search
-    fun updateAiQuery(q: String) {
-        _aiSearchQuery.value = q
+    // Downloads
+    fun downloadMedia(item: MediaItem) {
+        downloadManager.downloadMedia(
+            title = item.title,
+            url = item.uri,
+            mediaType = item.type
+        )
     }
 
-    fun setAiCategory(cat: AIMediaCategory) {
-        _aiCategory.value = cat
-        performAiSearch(_aiSearchQuery.value, cat)
+    fun downloadUrl(url: String, type: MediaType = MediaType.VIDEO) {
+        val clean = url.trim()
+        val detected = if (type == MediaType.STREAM_URL) {
+            val lower = clean.lowercase()
+            when {
+                lower.endsWith(".mp3") || lower.endsWith(".wav") || lower.endsWith(".ogg") || lower.endsWith(".aac") -> MediaType.MUSIC
+                lower.endsWith(".jpg") || lower.endsWith(".jpeg") || lower.endsWith(".png") || lower.endsWith(".webp") -> MediaType.PHOTO
+                else -> MediaType.VIDEO
+            }
+        } else {
+            type
+        }
+        val title = clean.substringAfterLast("/").substringBefore("?").ifEmpty { "Media_File" }
+        downloadManager.downloadMedia(
+            title = title,
+            url = clean,
+            mediaType = detected
+        )
     }
 
-    fun performAiSearch(query: String = _aiSearchQuery.value, category: AIMediaCategory = _aiCategory.value) {
+    // AI Media Explorer
+    fun updateAiQuery(query: String) {
+        _aiSearchQuery.value = query
+    }
+
+    fun setAiCategory(category: AIMediaCategory) {
+        _aiCategory.value = category
+        performAiSearch(_aiSearchQuery.value)
+    }
+
+    fun performAiSearch(query: String) {
         viewModelScope.launch {
             _isAiLoading.value = true
-            _aiResults.value = aiService.searchMedia(query, category)
+            _aiResults.value = aiService.searchMedia(query, _aiCategory.value)
             _isAiLoading.value = false
         }
+    }
+
+    fun saveCustomApiKey(key: String) {
+        aiService.saveCustomApiKey(key)
+        _customApiKey.value = key
     }
 
     // Private Vault
@@ -258,48 +276,45 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun setupVaultPin(pin: String, question: String, answer: String): Boolean {
-        val ok = securityManager.setupPin(pin, question, answer)
-        if (ok) {
+        val success = securityManager.setupPin(pin, question, answer)
+        if (success) {
             _isVaultUnlocked.value = true
         }
-        return ok
+        return success
     }
 
-    fun addVaultItem(
-        title: String,
-        content: String,
-        notes: String = "",
-        type: MediaType = MediaType.PRIVATE_NOTE,
-        category: String = "Private"
-    ) {
+    fun addMediaToVault(item: MediaItem) {
         viewModelScope.launch {
-            val entity = VaultItemEntity(
-                title = title,
-                contentOrUri = content,
-                secretNotes = notes,
-                mediaType = type.name,
-                category = category
+            vaultDao.insertVaultItem(
+                VaultItemEntity(
+                    title = item.title,
+                    contentOrUri = item.uri,
+                    secretNotes = "Locked from ${item.type.name} library",
+                    mediaType = item.type.name,
+                    category = "MEDIA"
+                )
             )
-            vaultRepo.addVaultItem(entity)
-            Toast.makeText(getApplication(), "Item locked safely in Private Vault", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    fun addVaultItem(title: String, content: String, notes: String, type: MediaType, category: String) {
+        viewModelScope.launch {
+            vaultDao.insertVaultItem(
+                VaultItemEntity(
+                    title = title,
+                    contentOrUri = content,
+                    secretNotes = notes,
+                    mediaType = type.name,
+                    category = category
+                )
+            )
         }
     }
 
     fun deleteVaultItem(item: VaultItemEntity) {
         viewModelScope.launch {
-            vaultRepo.deleteVaultItem(item)
-            Toast.makeText(getApplication(), "Removed from Vault", Toast.LENGTH_SHORT).show()
+            vaultDao.deleteVaultItem(item)
         }
-    }
-
-    fun addMediaToVault(item: MediaItem) {
-        addVaultItem(
-            title = item.title,
-            content = item.uri,
-            notes = "Moved from ${item.type.name} Gallery. Resolution/Info: ${item.resolution} ${item.subtitle}",
-            type = item.type,
-            category = "Imported Media"
-        )
     }
 
     override fun onCleared() {

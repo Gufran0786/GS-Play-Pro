@@ -24,7 +24,9 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.MusicNote
@@ -32,6 +34,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material.icons.filled.Videocam
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -46,7 +49,12 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -76,14 +84,19 @@ fun AISearchScreen(
     selectedCategory: AIMediaCategory,
     results: List<AIMediaCard>,
     isLoading: Boolean,
+    customApiKey: String,
+    onSaveApiKey: (String) -> Unit,
     onQueryChange: (String) -> Unit,
     onCategoryChange: (AIMediaCategory) -> Unit,
     onSearch: (String) -> Unit,
     onPlayMedia: (MediaItem) -> Unit,
+    onDownloadMedia: (MediaItem) -> Unit,
     onAddToVault: (MediaItem) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val focusManager = LocalFocusManager.current
+    var showApiKeyDialog by remember { mutableStateOf(false) }
+    var tempApiKey by remember(customApiKey) { mutableStateOf(customApiKey) }
 
     val categories = listOf(
         Pair(AIMediaCategory.ALL, "All Explorer"),
@@ -92,6 +105,11 @@ fun AISearchScreen(
         Pair(AIMediaCategory.VIDEOS, "Videos & Reels"),
         Pair(AIMediaCategory.PHOTOS, "4K Wallpapers"),
         Pair(AIMediaCategory.TRENDING, "Trending Now")
+    )
+
+    val quickSearches = listOf(
+        "Arijit Singh", "Bollywood Hits", "Kalki 2898 AD", "Pushpa 2", "Animal",
+        "Interstellar", "Lo-Fi Beats", "Synthwave 80s", "Cyberpunk 8K", "4K Drone Reel"
     )
 
     Column(
@@ -127,7 +145,7 @@ fun AISearchScreen(
                                 color = CyanPrimary
                             ) {
                                 Text(
-                                    text = "AI ENGINE",
+                                    text = if (customApiKey.isNotBlank()) "CUSTOM KEY ON" else "AI ONLINE",
                                     color = Color.Black,
                                     fontSize = 9.sp,
                                     fontWeight = FontWeight.Black,
@@ -136,28 +154,24 @@ fun AISearchScreen(
                             }
                         }
                         Text(
-                            text = "Search Movies, Songs, 4K Videos, Photos from Internet",
+                            text = "Instant Movies, Songs, 4K Videos & Wallpapers with Streaming & Download",
                             style = MaterialTheme.typography.bodySmall,
                             color = CyanPrimary
                         )
                     }
 
-                    Box(
+                    // Key Settings button
+                    IconButton(
+                        onClick = { showApiKeyDialog = true },
                         modifier = Modifier
-                            .size(42.dp)
-                            .clip(CircleShape)
-                            .background(
-                                Brush.linearGradient(
-                                    colors = listOf(CyanPrimary, MagentaAccent)
-                                )
-                            ),
-                        contentAlignment = Alignment.Center
+                            .background(Color.White.copy(alpha = 0.12f), CircleShape)
+                            .size(38.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.AutoAwesome,
-                            contentDescription = "AI",
-                            tint = Color.Black,
-                            modifier = Modifier.size(24.dp)
+                            imageVector = Icons.Default.Key,
+                            contentDescription = "API Key Settings",
+                            tint = if (customApiKey.isNotBlank()) CyanPrimary else SunsetGold,
+                            modifier = Modifier.size(20.dp)
                         )
                     }
                 }
@@ -168,7 +182,7 @@ fun AISearchScreen(
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = onQueryChange,
-                    placeholder = { Text("Search any movie, artist, song, anime, 4K clip...", color = Color.White.copy(alpha = 0.5f), fontSize = 13.sp) },
+                    placeholder = { Text("Search any movie, song, artist, video or wallpaper...", color = Color.White.copy(alpha = 0.5f), fontSize = 13.sp) },
                     leadingIcon = {
                         Icon(
                             imageVector = Icons.Default.Search,
@@ -177,15 +191,27 @@ fun AISearchScreen(
                         )
                     },
                     trailingIcon = {
-                        if (searchQuery.isNotEmpty()) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (searchQuery.isNotEmpty()) {
+                                IconButton(onClick = {
+                                    onQueryChange("")
+                                    onSearch("")
+                                }) {
+                                    Icon(
+                                        imageVector = Icons.Default.Clear,
+                                        contentDescription = "Clear",
+                                        tint = Color.White.copy(alpha = 0.6f)
+                                    )
+                                }
+                            }
                             IconButton(onClick = {
-                                onQueryChange("")
-                                onSearch("")
+                                focusManager.clearFocus()
+                                onSearch(searchQuery)
                             }) {
                                 Icon(
-                                    imageVector = Icons.Default.Clear,
-                                    contentDescription = "Clear",
-                                    tint = Color.White.copy(alpha = 0.6f)
+                                    imageVector = Icons.Default.AutoAwesome,
+                                    contentDescription = "Search AI",
+                                    tint = CyanPrimary
                                 )
                             }
                         }
@@ -209,7 +235,34 @@ fun AISearchScreen(
                         .testTag("ai_search_input_field")
                 )
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Quick Search Tags
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    items(quickSearches) { tag ->
+                        Surface(
+                            onClick = {
+                                onQueryChange(tag)
+                                onSearch(tag)
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0xFF222438)
+                        ) {
+                            Text(
+                                text = tag,
+                                color = Color.White.copy(alpha = 0.85f),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
 
                 // Category Chips Row
                 LazyRow(
@@ -259,7 +312,7 @@ fun AISearchScreen(
                     CircularProgressIndicator(color = CyanPrimary)
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
-                        text = "AI is scouring the internet for media...",
+                        text = "AI is fetching live online media & streams...",
                         color = CyanPrimary,
                         fontSize = 13.sp
                     )
@@ -273,7 +326,7 @@ fun AISearchScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "No results found.\nTry typing a different movie, song, or wallpaper name!",
+                    text = "No results found.\nType any movie, song, or keyword above!",
                     color = Color.White.copy(alpha = 0.5f),
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center
                 )
@@ -298,6 +351,17 @@ fun AISearchScreen(
                             )
                             onPlayMedia(mediaItem)
                         },
+                        onDownloadClick = {
+                            val mediaItem = MediaItem(
+                                title = card.title,
+                                subtitle = card.subtitle,
+                                uri = card.streamOrWebUrl,
+                                type = card.type,
+                                thumbnailUri = card.imageUrl,
+                                resolution = card.yearOrDuration
+                            )
+                            onDownloadMedia(mediaItem)
+                        },
                         onVaultClick = {
                             val mediaItem = MediaItem(
                                 title = card.title,
@@ -314,12 +378,64 @@ fun AISearchScreen(
             }
         }
     }
+
+    // Custom API Key Dialog
+    if (showApiKeyDialog) {
+        AlertDialog(
+            onDismissRequest = { showApiKeyDialog = false },
+            title = {
+                Text("Gemini AI API Key Configuration", fontWeight = FontWeight.Bold, color = Color.White)
+            },
+            text = {
+                Column {
+                    Text(
+                        text = "Enter your Google Gemini API Key below if you want direct real-time Gemini AI integration, or leave blank to use the smart online media discovery engine.",
+                        color = Color.White.copy(alpha = 0.8f),
+                        fontSize = 13.sp
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = tempApiKey,
+                        onValueChange = { tempApiKey = it },
+                        placeholder = { Text("Paste AI Studio Gemini Key...", color = Color.White.copy(alpha = 0.4f)) },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = CyanPrimary,
+                            unfocusedBorderColor = Color(0xFF333452),
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onSaveApiKey(tempApiKey)
+                        showApiKeyDialog = false
+                        onSearch(searchQuery)
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = CyanPrimary)
+                ) {
+                    Text("Save Key", color = Color.Black, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showApiKeyDialog = false }) {
+                    Text("Cancel", color = Color.White.copy(alpha = 0.7f))
+                }
+            },
+            containerColor = Color(0xFF1B1C2E)
+        )
+    }
 }
 
 @Composable
 private fun AIMediaCardView(
     card: AIMediaCard,
     onPlayClick: () -> Unit,
+    onDownloadClick: () -> Unit,
     onVaultClick: () -> Unit
 ) {
     Card(
@@ -426,18 +542,40 @@ private fun AIMediaCardView(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                    IconButton(
-                        onClick = onVaultClick,
-                        modifier = Modifier
-                            .size(32.dp)
-                            .background(SunsetGold.copy(alpha = 0.15f), CircleShape)
+
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Lock,
-                            contentDescription = "Save to Private Vault",
-                            tint = SunsetGold,
-                            modifier = Modifier.size(16.dp)
-                        )
+                        // Download Button
+                        IconButton(
+                            onClick = onDownloadClick,
+                            modifier = Modifier
+                                .size(34.dp)
+                                .background(SunsetGold.copy(alpha = 0.2f), CircleShape)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Download,
+                                contentDescription = "Download Media",
+                                tint = SunsetGold,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+
+                        // Vault Lock
+                        IconButton(
+                            onClick = onVaultClick,
+                            modifier = Modifier
+                                .size(34.dp)
+                                .background(MagentaAccent.copy(alpha = 0.18f), CircleShape)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Lock,
+                                contentDescription = "Save to Private Vault",
+                                tint = MagentaAccent,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
                     }
                 }
 

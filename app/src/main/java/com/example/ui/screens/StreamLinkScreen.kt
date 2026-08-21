@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.MusicNote
@@ -40,6 +41,7 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
@@ -71,6 +73,7 @@ fun StreamLinkScreen(
     onUrlChange: (String) -> Unit,
     onTypeChange: (MediaType) -> Unit,
     onPlayStream: (String?) -> Unit,
+    onDownloadStream: (String) -> Unit,
     onToggleBookmark: (Long, Boolean) -> Unit,
     onClearHistory: () -> Unit,
     modifier: Modifier = Modifier
@@ -78,11 +81,13 @@ fun StreamLinkScreen(
     val context = LocalContext.current
 
     val sampleStreams = listOf(
-        Pair("4K Nature Video Demo", "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"),
-        Pair("Synthwave Audio Stream", "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3"),
-        Pair("Chillhop Beats MP3", "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3"),
-        Pair("Cyberpunk 4K Photo", "https://images.unsplash.com/photo-1519501025264-65ba15a82390?w=1600"),
-        Pair("Sci-Fi Action Trailer", "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4")
+        Pair("4K Nature Video MP4", "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"),
+        Pair("Sci-Fi Trailer MP4", "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4"),
+        Pair("Bollywood Hit MP3", "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3"),
+        Pair("Synthwave Neon MP3", "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3"),
+        Pair("Lo-Fi Study MP3", "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3"),
+        Pair("Cyberpunk 8K Photo", "https://images.unsplash.com/photo-1519501025264-65ba15a82390?w=1600"),
+        Pair("Aurora Borealis 4K", "https://images.unsplash.com/photo-1531366936337-7c912a4589a7?w=1600")
     )
 
     LazyColumn(
@@ -108,13 +113,13 @@ fun StreamLinkScreen(
                     ) {
                         Column {
                             Text(
-                                text = "Direct URL Stream & Player",
+                                text = "Direct Stream & Downloader",
                                 style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Black,
                                 color = Color.White
                             )
                             Text(
-                                text = "Paste any video, music, or photo link to play immediately",
+                                text = "Stream or download videos, music & photos from any internet link",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = SunsetGold
                             )
@@ -160,7 +165,7 @@ fun StreamLinkScreen(
                     OutlinedTextField(
                         value = urlInput,
                         onValueChange = onUrlChange,
-                        placeholder = { Text("https://example.com/stream.mp4 or mp3...", color = Color.White.copy(alpha = 0.4f)) },
+                        placeholder = { Text("https://example.com/video.mp4 or music.mp3 or photo.jpg...", color = Color.White.copy(alpha = 0.4f), fontSize = 13.sp) },
                         trailingIcon = {
                             IconButton(
                                 onClick = {
@@ -241,40 +246,72 @@ fun StreamLinkScreen(
 
                     Spacer(modifier = Modifier.height(14.dp))
 
-                    // Stream Now Action Button
-                    Button(
-                        onClick = { onPlayStream(null) },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
-                        contentPadding = PaddingValues(),
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(50.dp)
-                            .testTag("stream_now_button")
+                    // Action Buttons Row: Stream & Download
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Box(
+                        // Stream Now Action Button
+                        Button(
+                            onClick = { onPlayStream(null) },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
+                            contentPadding = PaddingValues(),
+                            shape = RoundedCornerShape(14.dp),
                             modifier = Modifier
-                                .fillMaxSize()
-                                .background(
-                                    Brush.horizontalGradient(
-                                        colors = listOf(CyanPrimary, MagentaAccent)
+                                .weight(1.3f)
+                                .height(50.dp)
+                                .testTag("stream_now_button")
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(
+                                        Brush.horizontalGradient(
+                                            colors = listOf(CyanPrimary, MagentaAccent)
+                                        )
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.PlayArrow,
+                                        contentDescription = null,
+                                        tint = Color.Black,
+                                        modifier = Modifier.size(22.dp)
                                     )
-                                ),
-                            contentAlignment = Alignment.Center
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "STREAM NOW",
+                                        color = Color.Black,
+                                        fontWeight = FontWeight.Black,
+                                        fontSize = 14.sp
+                                    )
+                                }
+                            }
+                        }
+
+                        // Download Button
+                        Button(
+                            onClick = { onDownloadStream(urlInput) },
+                            colors = ButtonDefaults.buttonColors(containerColor = SunsetGold),
+                            shape = RoundedCornerShape(14.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(50.dp)
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(
-                                    imageVector = Icons.Default.PlayArrow,
+                                    imageVector = Icons.Default.Download,
                                     contentDescription = null,
                                     tint = Color.Black,
-                                    modifier = Modifier.size(24.dp)
+                                    modifier = Modifier.size(20.dp)
                                 )
-                                Spacer(modifier = Modifier.width(6.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
                                 Text(
-                                    text = "STREAM & PLAY NOW",
+                                    text = "DOWNLOAD",
                                     color = Color.Black,
                                     fontWeight = FontWeight.Black,
-                                    fontSize = 15.sp
+                                    fontSize = 13.sp
                                 )
                             }
                         }
@@ -287,10 +324,10 @@ fun StreamLinkScreen(
         item {
             Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
                 Text(
-                    text = "Quick Sample Streams (Tap to Play):",
+                    text = "Working Online Streams (Tap to Play / Download):",
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White.copy(alpha = 0.8f)
+                    color = Color.White.copy(alpha = 0.85f)
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 LazyRow(
@@ -366,7 +403,7 @@ fun StreamLinkScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "No streams played yet.\nPaste a link above to start watching or listening!",
+                        text = "No streams played yet.\nPaste any video or music link above to start streaming or downloading!",
                         color = Color.White.copy(alpha = 0.4f),
                         fontSize = 13.sp,
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
@@ -441,14 +478,27 @@ fun StreamLinkScreen(
                             )
                         }
 
-                        IconButton(
-                            onClick = { onToggleBookmark(item.id, item.isBookmarked) }
-                        ) {
-                            Icon(
-                                imageVector = if (item.isBookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
-                                contentDescription = "Bookmark",
-                                tint = if (item.isBookmarked) SunsetGold else Color.White.copy(alpha = 0.4f)
-                            )
+                        Row {
+                            IconButton(
+                                onClick = { onDownloadStream(item.streamUrl) }
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Download,
+                                    contentDescription = "Download",
+                                    tint = SunsetGold,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+
+                            IconButton(
+                                onClick = { onToggleBookmark(item.id, item.isBookmarked) }
+                            ) {
+                                Icon(
+                                    imageVector = if (item.isBookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
+                                    contentDescription = "Bookmark",
+                                    tint = if (item.isBookmarked) SunsetGold else Color.White.copy(alpha = 0.4f)
+                                )
+                            }
                         }
                     }
                 }

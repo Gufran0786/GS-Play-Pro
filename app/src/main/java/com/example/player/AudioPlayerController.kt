@@ -6,8 +6,8 @@ import android.media.MediaPlayer
 import android.net.Uri
 import android.os.Build
 import android.util.Log
+import android.widget.Toast
 import com.example.data.model.MediaItem
-import com.example.data.model.MediaType
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -29,6 +29,9 @@ class AudioPlayerController(private val context: Context) {
 
     private val _isPlaying = MutableStateFlow(false)
     val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
+
+    private val _isBuffering = MutableStateFlow(false)
+    val isBuffering: StateFlow<Boolean> = _isBuffering.asStateFlow()
 
     private val _currentPositionMs = MutableStateFlow(0L)
     val currentPositionMs: StateFlow<Long> = _currentPositionMs.asStateFlow()
@@ -59,6 +62,7 @@ class AudioPlayerController(private val context: Context) {
         }
 
         _currentTrack.value = item
+        _isBuffering.value = true
         stopAndRelease()
 
         try {
@@ -69,19 +73,35 @@ class AudioPlayerController(private val context: Context) {
                         .setUsage(AudioAttributes.USAGE_MEDIA)
                         .build()
                 )
-                if (item.uri.startsWith("content://") || item.uri.startsWith("file://")) {
-                    setDataSource(context, Uri.parse(item.uri))
+
+                val uri = item.uri.trim()
+                if (uri.startsWith("content://") || uri.startsWith("file://")) {
+                    setDataSource(context, Uri.parse(uri))
+                } else if (uri.startsWith("http://") || uri.startsWith("https://")) {
+                    val headers = mapOf(
+                        "User-Agent" to "Mozilla/5.0 (Linux; Android 14) GSPlayPro/1.0",
+                        "Accept" to "*/*"
+                    )
+                    setDataSource(context, Uri.parse(uri), headers)
                 } else {
-                    setDataSource(item.uri)
+                    setDataSource(uri)
                 }
+
                 isLooping = _isLooping.value
 
                 setOnPreparedListener { mp ->
+                    _isBuffering.value = false
                     mp.start()
                     _isPlaying.value = true
                     _durationMs.value = mp.duration.toLong().coerceAtLeast(item.durationMs)
                     applyPlaybackSpeed(_playbackSpeed.value)
                     startProgressTracker()
+                }
+
+                setOnBufferingUpdateListener { _, percent ->
+                    if (percent >= 100) {
+                        _isBuffering.value = false
+                    }
                 }
 
                 setOnCompletionListener {
@@ -91,8 +111,10 @@ class AudioPlayerController(private val context: Context) {
                 }
 
                 setOnErrorListener { _, what, extra ->
-                    Log.e("AudioPlayer", "Error what=$what extra=$extra")
+                    Log.e("AudioPlayer", "Playback error what=$what extra=$extra on uri: ${item.uri}")
+                    _isBuffering.value = false
                     _isPlaying.value = false
+                    Toast.makeText(context, "Cannot stream this audio. Check connection or link.", Toast.LENGTH_SHORT).show()
                     true
                 }
 
@@ -100,27 +122,37 @@ class AudioPlayerController(private val context: Context) {
             }
             mediaPlayer = player
         } catch (e: Exception) {
-            Log.e("AudioPlayer", "Failed to start playback: ${e.message}")
+            Log.e("AudioPlayer", "Failed to start audio playback: ${e.message}")
+            _isBuffering.value = false
             _isPlaying.value = false
+            Toast.makeText(context, "Audio error: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
 
     fun togglePlayPause() {
         val player = mediaPlayer ?: return
-        if (player.isPlaying) {
-            player.pause()
-            _isPlaying.value = false
-        } else {
-            player.start()
-            _isPlaying.value = true
-            startProgressTracker()
+        try {
+            if (player.isPlaying) {
+                player.pause()
+                _isPlaying.value = false
+            } else {
+                player.start()
+                _isPlaying.value = true
+                startProgressTracker()
+            }
+        } catch (e: Exception) {
+            Log.e("AudioPlayer", "Toggle play error: ${e.message}")
         }
     }
 
     fun seekTo(positionMs: Long) {
         val player = mediaPlayer ?: return
-        player.seekTo(positionMs.toInt())
-        _currentPositionMs.value = positionMs
+        try {
+            player.seekTo(positionMs.toInt())
+            _currentPositionMs.value = positionMs
+        } catch (e: Exception) {
+            Log.e("AudioPlayer", "Seek error: ${e.message}")
+        }
     }
 
     fun next() {
@@ -171,7 +203,11 @@ class AudioPlayerController(private val context: Context) {
     fun toggleLoop() {
         val newLoop = !_isLooping.value
         _isLooping.value = newLoop
-        mediaPlayer?.isLooping = newLoop
+        try {
+            mediaPlayer?.isLooping = newLoop
+        } catch (e: Exception) {
+            // ignore
+        }
     }
 
     fun toggleShuffle() {
@@ -189,13 +225,12 @@ class AudioPlayerController(private val context: Context) {
                             if (mp.duration > 0) {
                                 _durationMs.value = mp.duration.toLong()
                             }
-                            // Simulate dynamic audio wave amplitudes
                             _visualizerAmplitudes.value = List(16) {
                                 (0.15f + Random.nextFloat() * 0.85f)
                             }
                         }
                     } catch (e: Exception) {
-                        // ignore state exception during transition
+                        // ignore
                     }
                 }
                 delay(200)
@@ -215,5 +250,6 @@ class AudioPlayerController(private val context: Context) {
         }
         mediaPlayer = null
         _isPlaying.value = false
+        _isBuffering.value = false
     }
 }

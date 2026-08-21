@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MusicNote
@@ -33,8 +34,7 @@ import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.Speed
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -85,6 +85,7 @@ fun NowPlayingSheet(
     onToggleLoop: () -> Unit,
     onToggleShuffle: () -> Unit,
     onAddToVault: (MediaItem) -> Unit,
+    onDownload: ((MediaItem) -> Unit)? = null,
     onDismiss: () -> Unit
 ) {
     if (track == null) return
@@ -115,7 +116,7 @@ fun NowPlayingSheet(
                 .padding(horizontal = 24.dp, vertical = 20.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Header with down arrow and vault lock
+            // Header with down arrow, download, and vault lock
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -138,13 +139,26 @@ fun NowPlayingSheet(
                     letterSpacing = 2.sp
                 )
 
-                IconButton(onClick = { onAddToVault(track) }) {
-                    Icon(
-                        imageVector = Icons.Default.Lock,
-                        contentDescription = "Lock in Vault",
-                        tint = SunsetGold,
-                        modifier = Modifier.size(22.dp)
-                    )
+                Row {
+                    if (onDownload != null) {
+                        IconButton(onClick = { onDownload(track) }) {
+                            Icon(
+                                imageVector = Icons.Default.Download,
+                                contentDescription = "Download Song",
+                                tint = SunsetGold,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                    }
+
+                    IconButton(onClick = { onAddToVault(track) }) {
+                        Icon(
+                            imageVector = Icons.Default.Lock,
+                            contentDescription = "Lock in Vault",
+                            tint = MagentaAccent,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
                 }
             }
 

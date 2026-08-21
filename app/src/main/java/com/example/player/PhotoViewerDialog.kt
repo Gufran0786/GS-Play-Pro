@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Info
@@ -67,6 +68,7 @@ fun PhotoViewerDialog(
     item: MediaItem,
     onDismiss: () -> Unit,
     onAddToVault: (MediaItem) -> Unit,
+    onDownload: ((MediaItem) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -157,7 +159,7 @@ fun PhotoViewerDialog(
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
-                        text = item.resolution.ifEmpty { "HD Gallery Photo" },
+                        text = item.resolution.ifEmpty { "HD Photo" },
                         color = CyanPrimary,
                         style = MaterialTheme.typography.bodySmall
                     )
@@ -221,6 +223,22 @@ fun PhotoViewerDialog(
                     contentDescription = "Share",
                     tint = Color.White
                 )
+            }
+
+            // Download Button
+            if (onDownload != null) {
+                IconButton(
+                    onClick = { onDownload(item) },
+                    modifier = Modifier
+                        .background(SunsetGold.copy(alpha = 0.2f), CircleShape)
+                        .size(48.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Download,
+                        contentDescription = "Download Photo",
+                        tint = SunsetGold
+                    )
+                }
             }
 
             // Favorite
