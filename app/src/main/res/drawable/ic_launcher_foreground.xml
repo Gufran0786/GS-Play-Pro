@@ -1,0 +1,54 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:scaleX="0.9"
+        android:scaleY="0.9"
+        android:pivotX="54"
+        android:pivotY="54">
+        <!-- Rounded square container with gradient border -->
+        <path
+            android:pathData="M32,24 L76,24 A12,12 0 0,1 88,36 L88,72 A12,12 0 0,1 76,84 L32,84 A12,12 0 0,1 20,72 L20,36 A12,12 0 0,1 32,24 Z"
+            android:strokeWidth="2.5"
+            android:fillColor="#3318182E">
+            <aapt:attr name="android:strokeColor">
+                <gradient
+                    android:startX="20"
+                    android:startY="24"
+                    android:endX="88"
+                    android:endY="84"
+                    android:type="linear">
+                    <item android:color="#FF00F5D4" android:offset="0.0" />
+                    <item android:color="#FF7B2CBF" android:offset="0.5" />
+                    <item android:color="#FFFF007F" android:offset="1.0" />
+                </gradient>
+            </aapt:attr>
+        </path>
+
+        <!-- Dynamic Play button triangle in center -->
+        <path
+            android:pathData="M44,38 L72,54 L44,70 Z">
+            <aapt:attr name="android:fillColor">
+                <gradient
+                    android:startX="44"
+                    android:startY="38"
+                    android:endX="72"
+                    android:endY="70"
+                    android:type="linear">
+                    <item android:color="#FF00F5D4" android:offset="0.0" />
+                    <item android:color="#FFFF5E7E" android:offset="1.0" />
+                </gradient>
+            </aapt:attr>
+        </path>
+
+        <!-- Soundwave / Pro bars at right top -->
+        <path
+            android:pathData="M78,44 L78,48 M82,40 L82,52 M86,43 L86,49"
+            android:strokeWidth="2"
+            android:strokeColor="#FF00F5D4"
+            android:strokeLineCap="round" />
+    </group>
+</vector>

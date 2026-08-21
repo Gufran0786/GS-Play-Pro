@@ -1,0 +1,6 @@
+{
+  "name": "GS Play Pro",
+  "description": "All-in-one media player & hub for Photos, Videos, Music, URL streaming, AI Media Search, and Private Vault with PIN protection.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
